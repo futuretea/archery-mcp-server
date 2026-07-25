@@ -1,23 +1,22 @@
-# MCP Server Template
+# Archery MCP Server
 
 [English](README.md)
 
-可 clone 的最小 MCP（Model Context Protocol）server 骨架。同一二进制同时提供给 AI 助手用的 **MCP server**，以及给人用的小型 **CLI**。内置示例工具 `echo` / `ping`。
+固定 Archery 1.14.0 公开 API 的 MCP 服务。它使用一个配置的服务账号，并暴露 31 个具名工具；明确排除 TOTP 设置和保存。
 
 ## 快速开始
 
 ```bash
 # 需要 Go 1.25+（见 .tool-versions）
 make build
-./bin/mcp-server version
+./bin/archery-mcp-server version
 
 # 启动 MCP server（默认 stdio）
-./bin/mcp-server mcp
+./bin/archery-mcp-server mcp
 
 # 不经过 MCP 客户端，直接用 CLI 列工具 / 调工具
-./bin/mcp-server tools list
-./bin/mcp-server tools call echo --params '{"message":"hello"}'
-./bin/mcp-server tools call ping --params '{}'
+./bin/archery-mcp-server tools list
+MCP_ARCHERY_PASSWORD='provided-at-runtime' ./bin/archery-mcp-server --config config.example.yaml tools list
 ```
 
 ## 功能
@@ -31,23 +30,19 @@ make build
 
 | 命令 | 作用 |
 |------|------|
-| `mcp-server mcp` | 启动 MCP server（stdio 或 HTTP） |
-| `mcp-server tools list` | 列出已启用工具 |
-| `mcp-server tools describe <name>` | 查看工具 schema |
-| `mcp-server tools call <name>` | 用 JSON 参数调用工具 |
-| `mcp-server version` | 打印构建信息 |
-| `mcp-server completion <shell>` | 生成 shell 补全脚本 |
+| `archery-mcp-server mcp` | 启动 MCP server（stdio 或 HTTP） |
+| `archery-mcp-server tools list` | 列出已启用工具 |
+| `archery-mcp-server tools describe <name>` | 查看工具 schema |
+| `archery-mcp-server tools call <name>` | 用 JSON 参数调用工具 |
+| `archery-mcp-server version` | 打印构建信息 |
+| `archery-mcp-server completion <shell>` | 生成 shell 补全脚本 |
 
 ### tools 示例
 
 ```bash
-./bin/mcp-server tools list
-./bin/mcp-server tools list --json
-./bin/mcp-server tools describe echo
-./bin/mcp-server tools describe echo --json
-./bin/mcp-server tools call echo --params '{"message":"hello"}'
-echo '{"message":"hello"}' | ./bin/mcp-server tools call echo --params-file -
-./bin/mcp-server tools call ping --params '{}'
+./bin/archery-mcp-server tools list
+./bin/archery-mcp-server tools list --json
+./bin/archery-mcp-server --config config.example.yaml tools describe workflows.sql_check
 ```
 
 ## MCP 传输模式
@@ -55,7 +50,7 @@ echo '{"message":"hello"}' | ./bin/mcp-server tools call echo --params-file -
 ### Stdio（默认）
 
 ```bash
-./bin/mcp-server mcp
+./bin/archery-mcp-server mcp
 ```
 
 Cursor / Claude Desktop 配置示例：
@@ -63,8 +58,8 @@ Cursor / Claude Desktop 配置示例：
 ```json
 {
   "mcpServers": {
-    "mcp-server-template": {
-      "command": "/absolute/path/to/bin/mcp-server",
+    "archery-mcp-server": {
+      "command": "/absolute/path/to/bin/archery-mcp-server",
       "args": ["mcp"]
     }
   }
@@ -74,7 +69,7 @@ Cursor / Claude Desktop 配置示例：
 ### Streamable HTTP
 
 ```bash
-./bin/mcp-server mcp --port 8080
+./bin/archery-mcp-server mcp --port 8080
 curl -s http://127.0.0.1:8080/healthz
 ```
 
@@ -83,7 +78,7 @@ curl -s http://127.0.0.1:8080/healthz
 ```json
 {
   "mcpServers": {
-    "mcp-server-template": {
+    "archery-mcp-server": {
       "url": "http://127.0.0.1:8080/mcp"
     }
   }
@@ -102,7 +97,7 @@ curl -s http://127.0.0.1:8080/healthz
 | `/message` | SSE message endpoint |
 
 ```bash
-./bin/mcp-server mcp --port 8080 --sse-base-url http://127.0.0.1:8080
+./bin/archery-mcp-server mcp --port 8080 --sse-base-url http://127.0.0.1:8080
 ```
 
 ### Docker
@@ -111,11 +106,11 @@ curl -s http://127.0.0.1:8080/healthz
 # 构建
 make docker
 
-# Stdio（默认 ENTRYPOINT 为 mcp-server mcp）
-docker run -i --rm mcp-server-template:dev
+# Stdio（默认 ENTRYPOINT 为 archery-mcp-server mcp）
+docker run -i --rm archery-mcp-server:dev
 
 # HTTP
-docker run --rm -p 8080:8080 mcp-server-template:dev --port 8080 --listen 0.0.0.0
+docker run --rm -p 8080:8080 archery-mcp-server:dev --port 8080 --listen 0.0.0.0
 ```
 
 HTTP / SSE **无鉴权、无 TLS**。默认 `--listen 127.0.0.1`。仅在受信网络使用；对外暴露时请自行加反向代理与认证。
@@ -146,10 +141,15 @@ enabled_tools: []
 disabled_tools: []
 enabled_domains: []
 disabled_domains: []
+archery:
+  base_url: https://archery.example.com/prefix
+  username: mcp-service
+  password_env: MCP_ARCHERY_PASSWORD
+  request_timeout: 15s
 ```
 
 ```bash
-./bin/mcp-server mcp --config config.example.yaml --port 8080
+./bin/archery-mcp-server mcp --config config.example.yaml --port 8080
 ```
 
 ## 目录结构
@@ -161,7 +161,7 @@ pkg/core/                # config / logging / version
 pkg/server/mcp/          # MCP 注册与 transport
 pkg/server/http/         # HTTP / SSE / healthz
 pkg/toolset/             # Toolset 接口与过滤
-pkg/toolset/example/     # 示例 tools（替换为你的业务）
+pkg/toolset/archery/     # 固定 Archery 工具
 .github/workflows/       # CI
 ```
 

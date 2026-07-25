@@ -1,4 +1,4 @@
-module github.com/futuretea/mcp-server-template
+module github.com/futuretea/archery-mcp-server
 
 go 1.25.10
 

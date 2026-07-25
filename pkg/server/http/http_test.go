@@ -9,17 +9,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/futuretea/mcp-server-template/pkg/core/config"
-	internalhttp "github.com/futuretea/mcp-server-template/pkg/server/http"
-	mcpserver "github.com/futuretea/mcp-server-template/pkg/server/mcp"
-	"github.com/futuretea/mcp-server-template/pkg/toolset"
-	"github.com/futuretea/mcp-server-template/pkg/toolset/example"
+	"github.com/futuretea/archery-mcp-server/pkg/core/config"
+	internalhttp "github.com/futuretea/archery-mcp-server/pkg/server/http"
+	mcpserver "github.com/futuretea/archery-mcp-server/pkg/server/mcp"
+	"github.com/futuretea/archery-mcp-server/pkg/toolset"
+	"github.com/mark3labs/mcp-go/mcp"
 )
+
+type testToolset struct{}
+
+func (testToolset) GetName() string        { return "test" }
+func (testToolset) GetDescription() string { return "test tools" }
+func (testToolset) GetTools() []toolset.ServerTool {
+	return []toolset.ServerTool{{Tool: mcp.NewTool("test.tool"), Domain: "test", Handler: func(_ context.Context, _ map[string]any) (string, error) { return "", nil }}}
+}
 
 func TestHealthz(t *testing.T) {
 	mcpServer, err := mcpserver.NewServer(mcpserver.Configuration{
 		StaticConfig: &config.StaticConfig{LogLevel: "info"},
-		Toolsets:     []toolset.Toolset{&example.Toolset{}},
+		Toolsets:     []toolset.Toolset{testToolset{}},
 	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
@@ -68,7 +76,7 @@ func TestHealthz(t *testing.T) {
 func TestServeListenerShutdown(t *testing.T) {
 	mcpServer, err := mcpserver.NewServer(mcpserver.Configuration{
 		StaticConfig: &config.StaticConfig{LogLevel: "info"},
-		Toolsets:     []toolset.Toolset{&example.Toolset{}},
+		Toolsets:     []toolset.Toolset{testToolset{}},
 	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)

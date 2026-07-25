@@ -1,19 +1,28 @@
 package mcp_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
-	"github.com/futuretea/mcp-server-template/pkg/core/config"
-	mcpserver "github.com/futuretea/mcp-server-template/pkg/server/mcp"
-	"github.com/futuretea/mcp-server-template/pkg/toolset"
-	"github.com/futuretea/mcp-server-template/pkg/toolset/example"
+	"github.com/futuretea/archery-mcp-server/pkg/core/config"
+	mcpserver "github.com/futuretea/archery-mcp-server/pkg/server/mcp"
+	"github.com/futuretea/archery-mcp-server/pkg/toolset"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func TestNewServerRegistersExampleTools(t *testing.T) {
+type testToolset struct{}
+
+func (testToolset) GetName() string        { return "test" }
+func (testToolset) GetDescription() string { return "test tools" }
+func (testToolset) GetTools() []toolset.ServerTool {
+	return []toolset.ServerTool{{Tool: mcp.NewTool("test.tool"), Domain: "test", Handler: func(_ context.Context, _ map[string]any) (string, error) { return "", nil }}}
+}
+
+func TestNewServerRegistersTools(t *testing.T) {
 	server, err := mcpserver.NewServer(mcpserver.Configuration{
 		StaticConfig: &config.StaticConfig{LogLevel: "info"},
-		Toolsets:     []toolset.Toolset{&example.Toolset{}},
+		Toolsets:     []toolset.Toolset{testToolset{}},
 	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
@@ -24,15 +33,15 @@ func TestNewServerRegistersExampleTools(t *testing.T) {
 		t.Fatal("expected healthy server")
 	}
 	tools := server.GetEnabledTools()
-	if len(tools) != 2 {
-		t.Fatalf("expected 2 tools, got %v", tools)
+	if len(tools) != 1 {
+		t.Fatalf("expected 1 tool, got %v", tools)
 	}
 	names := map[string]bool{}
 	for _, name := range tools {
 		names[name] = true
 	}
-	if !names["echo"] || !names["ping"] {
-		t.Fatalf("expected echo and ping, got %v", tools)
+	if !names["test.tool"] {
+		t.Fatalf("expected test tool, got %v", tools)
 	}
 }
 
@@ -49,7 +58,7 @@ func TestNewServerRejectsEmptyToolFilter(t *testing.T) {
 			LogLevel:     "info",
 			EnabledTools: []string{"missing"},
 		},
-		Toolsets: []toolset.Toolset{&example.Toolset{}},
+		Toolsets: []toolset.Toolset{testToolset{}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "no tools registered") {
 		t.Fatalf("expected no tools registered error, got %v", err)
@@ -60,11 +69,11 @@ func TestNewServerRejectsDuplicateToolNames(t *testing.T) {
 	_, err := mcpserver.NewServer(mcpserver.Configuration{
 		StaticConfig: &config.StaticConfig{LogLevel: "info"},
 		Toolsets: []toolset.Toolset{
-			&example.Toolset{},
-			&example.Toolset{},
+			testToolset{},
+			testToolset{},
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), `duplicate tool name "echo"`) {
+	if err == nil || !strings.Contains(err.Error(), `duplicate tool name "test.tool"`) {
 		t.Fatalf("expected duplicate tool name error, got %v", err)
 	}
 }

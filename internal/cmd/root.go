@@ -7,11 +7,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/futuretea/mcp-server-template/internal/toolcatalog"
-	"github.com/futuretea/mcp-server-template/pkg/core/config"
-	"github.com/futuretea/mcp-server-template/pkg/core/version"
-	"github.com/futuretea/mcp-server-template/pkg/toolset"
-	"github.com/futuretea/mcp-server-template/pkg/toolset/example"
+	internalarchery "github.com/futuretea/archery-mcp-server/internal/archery"
+	"github.com/futuretea/archery-mcp-server/internal/toolcatalog"
+	"github.com/futuretea/archery-mcp-server/pkg/core/config"
+	"github.com/futuretea/archery-mcp-server/pkg/core/version"
+	"github.com/futuretea/archery-mcp-server/pkg/toolset"
+	archerytoolset "github.com/futuretea/archery-mcp-server/pkg/toolset/archery"
 )
 
 // IOStreams groups the streams used by the CLI.
@@ -28,7 +29,7 @@ func NewRootCommand(streams IOStreams) *cobra.Command {
 
 	command := &cobra.Command{
 		Use:           version.BinaryName,
-		Short:         "MCP server template CLI and Model Context Protocol server",
+		Short:         "Archery MCP Server CLI and Model Context Protocol server",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -81,12 +82,20 @@ func loadCLIConfig(cmd *cobra.Command, cfgFile string, v *viper.Viper) (*config.
 	return cfg, nil
 }
 
-func defaultToolsets() []toolset.Toolset {
-	return []toolset.Toolset{&example.Toolset{}}
+func defaultToolsets(cfg *config.StaticConfig) ([]toolset.Toolset, error) {
+	client, err := internalarchery.NewClient(cfg.Archery)
+	if err != nil {
+		return nil, err
+	}
+	return []toolset.Toolset{archerytoolset.New(client, cfg.Archery.Username)}, nil
 }
 
 func buildToolCatalog(cfg *config.StaticConfig) ([]toolset.ServerTool, error) {
-	return toolcatalog.Build(defaultToolsets(), toolset.FilterOptions{
+	toolsets, err := defaultToolsets(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return toolcatalog.Build(toolsets, toolset.FilterOptions{
 		EnabledTools:    cfg.EnabledTools,
 		DisabledTools:   cfg.DisabledTools,
 		EnabledDomains:  cfg.EnabledDomains,

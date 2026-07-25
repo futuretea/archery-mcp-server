@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,10 +10,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/futuretea/mcp-server-template/pkg/toolset"
+	"github.com/futuretea/archery-mcp-server/pkg/toolset"
 )
 
 func newToolsCommand(streams IOStreams, cfgFile *string, v *viper.Viper) *cobra.Command {
@@ -32,8 +34,8 @@ func newToolsListCommand(streams IOStreams, cfgFile *string, v *viper.Viper) *co
 	command := &cobra.Command{
 		Use:   "list",
 		Short: "list enabled tools",
-		Example: `  mcp-server tools list
-  mcp-server tools list --json`,
+		Example: `  archery-mcp-server tools list
+  archery-mcp-server tools list --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadCLIConfig(cmd, *cfgFile, v)
 			if err != nil {
@@ -59,8 +61,8 @@ func newToolsDescribeCommand(streams IOStreams, cfgFile *string, v *viper.Viper)
 		Use:     "describe <tool-name>",
 		Aliases: []string{"schema"},
 		Short:   "describe an enabled tool schema",
-		Example: `  mcp-server tools describe echo
-  mcp-server tools describe echo --json`,
+		Example: `  archery-mcp-server tools describe workflows.sql_check
+  archery-mcp-server tools describe workflows.sql_check --json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadCLIConfig(cmd, *cfgFile, v)
@@ -73,7 +75,7 @@ func newToolsDescribeCommand(streams IOStreams, cfgFile *string, v *viper.Viper)
 			}
 			tool, ok := findTool(tools, args[0])
 			if !ok {
-				return fmt.Errorf("unknown tool %q; run 'mcp-server tools list' to see available tools", args[0])
+				return fmt.Errorf("unknown tool %q; run 'archery-mcp-server tools list' to see available tools", args[0])
 			}
 			description := newToolDescription(tool)
 			if jsonOutput {
@@ -94,9 +96,8 @@ func newToolsCallCommand(streams IOStreams, cfgFile *string, v *viper.Viper) *co
 	command := &cobra.Command{
 		Use:   "call <tool-name>",
 		Short: "call an enabled tool with JSON parameters",
-		Example: `  mcp-server tools call echo --params '{"message":"hello"}'
-  echo '{"message":"hello"}' | mcp-server tools call echo --params-file -
-  mcp-server tools call ping --params '{}'`,
+		Example: `  archery-mcp-server --config config.yaml tools call workflows.sql_check --params '{"instance_id":1,"db_name":"app","full_sql":"select 1"}'
+	  echo '{"auth_type":"totp","otp":123456}' | archery-mcp-server --config config.yaml tools call service_2fa.verify --params-file -`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadCLIConfig(cmd, *cfgFile, v)
@@ -113,7 +114,10 @@ func newToolsCallCommand(streams IOStreams, cfgFile *string, v *viper.Viper) *co
 			}
 			tool, ok := findTool(tools, args[0])
 			if !ok {
-				return fmt.Errorf("unknown tool %q; run 'mcp-server tools list' to see available tools", args[0])
+				return fmt.Errorf("unknown tool %q; run 'archery-mcp-server tools list' to see available tools", args[0])
+			}
+			if err := validateToolParams(tool, params); err != nil {
+				return err
 			}
 			result, err := tool.Handler(cmd.Context(), params)
 			if err != nil {
@@ -126,6 +130,47 @@ func newToolsCallCommand(streams IOStreams, cfgFile *string, v *viper.Viper) *co
 	command.Flags().StringVar(&rawParams, "params", "{}", "tool parameters as a JSON object")
 	command.Flags().StringVar(&paramsFile, "params-file", "", "path to a JSON file containing tool parameters; use - to read stdin")
 	return command
+}
+
+func validateToolParams(tool toolset.ServerTool, params map[string]any) error {
+	schemaJSON := tool.Tool.RawInputSchema
+	if len(schemaJSON) == 0 {
+		if tool.Tool.InputSchema.Type == "" && len(tool.Tool.InputSchema.Properties) == 0 && len(tool.Tool.InputSchema.Required) == 0 && tool.Tool.InputSchema.AdditionalProperties == nil {
+			return nil
+		}
+		var err error
+		schemaJSON, err = json.Marshal(tool.Tool.InputSchema)
+		if err != nil {
+			return fmt.Errorf("marshal input schema for tool %q: %w", tool.Tool.Name, err)
+		}
+	}
+
+	document, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
+	if err != nil {
+		return fmt.Errorf("decode input schema for tool %q: %w", tool.Tool.Name, err)
+	}
+	resourceURL := fmt.Sprintf("mem:///archery-mcp-server/tools/%s/input-schema.json", tool.Tool.Name)
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource(resourceURL, document); err != nil {
+		return fmt.Errorf("register input schema for tool %q: %w", tool.Tool.Name, err)
+	}
+	compiled, err := compiler.Compile(resourceURL)
+	if err != nil {
+		return fmt.Errorf("compile input schema for tool %q: %w", tool.Tool.Name, err)
+	}
+
+	encodedParams, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("encode parameters for tool %q: %w", tool.Tool.Name, err)
+	}
+	value, err := jsonschema.UnmarshalJSON(bytes.NewReader(encodedParams))
+	if err != nil {
+		return fmt.Errorf("decode parameters for tool %q: %w", tool.Tool.Name, err)
+	}
+	if err := compiled.Validate(value); err != nil {
+		return fmt.Errorf("input schema validation failed for tool %q: %w", tool.Tool.Name, err)
+	}
+	return nil
 }
 
 func findTool(tools []toolset.ServerTool, name string) (toolset.ServerTool, bool) {

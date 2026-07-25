@@ -16,10 +16,10 @@ ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 go build \
     -trimpath \
     -ldflags="-s -w \
-      -X github.com/futuretea/mcp-server-template/pkg/core/version.Version=${VERSION} \
-      -X github.com/futuretea/mcp-server-template/pkg/core/version.Commit=${GIT_COMMIT} \
-      -X github.com/futuretea/mcp-server-template/pkg/core/version.Date=${BUILD_DATE}" \
-    -o /usr/local/bin/mcp-server ./cmd/mcp-server
+      -X github.com/futuretea/archery-mcp-server/pkg/core/version.Version=${VERSION} \
+      -X github.com/futuretea/archery-mcp-server/pkg/core/version.Commit=${GIT_COMMIT} \
+      -X github.com/futuretea/archery-mcp-server/pkg/core/version.Date=${BUILD_DATE}" \
+    -o /usr/local/bin/archery-mcp-server ./cmd/mcp-server
 
 FROM alpine:3.22 AS runtime
 
@@ -29,12 +29,12 @@ RUN apk add --no-cache ca-certificates \
 
 USER mcp
 
-ENTRYPOINT ["/usr/local/bin/mcp-server", "mcp"]
+ENTRYPOINT ["/usr/local/bin/archery-mcp-server", "mcp"]
 
 FROM runtime AS release
 
-COPY mcp-server /usr/local/bin/mcp-server
+COPY archery-mcp-server /usr/local/bin/archery-mcp-server
 
 FROM runtime AS dev
 
-COPY --from=builder /usr/local/bin/mcp-server /usr/local/bin/mcp-server
+COPY --from=builder /usr/local/bin/archery-mcp-server /usr/local/bin/archery-mcp-server

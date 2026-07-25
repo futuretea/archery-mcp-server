@@ -97,8 +97,8 @@ jobs:
 
       - name: Smoke CLI
         run: |
-          ./bin/mcp-server version
-          ./bin/mcp-server tools list
+          ./bin/archery-mcp-server version
+          MCP_ARCHERY_PASSWORD=ci ./bin/archery-mcp-server --config config.example.yaml tools list
 
   docker:
     name: Docker Build
@@ -113,4 +113,4 @@ jobs:
           --build-arg VERSION=ci
           --build-arg GIT_COMMIT=${{ github.sha }}
           --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          -t mcp-server-template:ci .
+          -t archery-mcp-server:ci .

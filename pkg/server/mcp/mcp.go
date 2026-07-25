@@ -9,10 +9,10 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/rs/zerolog/log"
 
-	"github.com/futuretea/mcp-server-template/internal/toolcatalog"
-	"github.com/futuretea/mcp-server-template/pkg/core/config"
-	"github.com/futuretea/mcp-server-template/pkg/core/version"
-	"github.com/futuretea/mcp-server-template/pkg/toolset"
+	"github.com/futuretea/archery-mcp-server/internal/toolcatalog"
+	"github.com/futuretea/archery-mcp-server/pkg/core/config"
+	"github.com/futuretea/archery-mcp-server/pkg/core/version"
+	"github.com/futuretea/archery-mcp-server/pkg/toolset"
 )
 
 // Configuration holds server startup settings.
@@ -40,6 +40,7 @@ func NewServer(configuration Configuration) (*Server, error) {
 			version.BinaryName,
 			version.Version,
 			server.WithToolCapabilities(true),
+			server.WithInputSchemaValidation(),
 			server.WithLogging(),
 		),
 	}

@@ -6,3 +6,8 @@ enabled_tools: []
 disabled_tools: []
 enabled_domains: []
 disabled_domains: []
+archery:
+  base_url: https://archery.example.com/prefix
+  username: mcp-service
+  password_env: MCP_ARCHERY_PASSWORD
+  request_timeout: 15s
